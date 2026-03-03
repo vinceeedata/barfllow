@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>BarFlow — Gestion de Bar</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3d;
+    --accent: #f0b429;
+    --accent2: #e85d4a;
+    --green: #2dd4a0;
+    --blue: #60a5fa;
+    --text: #f0f0f8;
+    --text2: #8888aa;
+    --radius: 12px;
+    --font-mono: 'Space Mono', monospace;
+    --font: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; padding-bottom: 90px; }
+
+  /* HEADER */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: var(--font-mono); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+
+  /* BOTTOM NAV */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; cursor: pointer; transition: all 0.2s; border: none; background: none; color: var(--text2); font-family: var(--font); font-size: 11px; font-weight: 500; }
+  .nav-item.active { color: var(--accent); }
+  .nav-item svg { width: 22px; height: 22px; }
+
+  /* PAGES */
+  .page { display: none; padding: 16px 20px; animation: fadeIn 0.2s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* TYPOGRAPHY */
+  .section-title { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--text2); text-transform: uppercase; margin: 24px 0 12px; }
+  .section-title:first-child { margin-top: 8px; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; transition: border-color 0.2s; }
+
+  /* PRODUCT CARD */
+  .product-card { display: flex; align-items: center; gap: 12px; }
+  .product-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .product-info { flex: 1; min-width: 0; }
+  .product-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .product-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .product-stock { text-align: right; flex-shrink: 0; }
+  .stock-value { font-family: var(--font-mono); font-size: 18px; font-weight: 700; line-height: 1; }
+  .stock-unit { font-size: 11px; color: var(--text2); }
+  .stock-warning { color: var(--accent2) !important; }
+  .stock-ok { color: var(--green) !important; }
+  .stock-critical { color: var(--accent2) !important; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; font-family: var(--font); font-size: 14px; font-weight: 600; transition: all 0.15s; white-space: nowrap; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--accent2); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-blue { background: var(--blue); color: #000; }
+  .btn-sm { padding: 8px 14px; font-size: 13px; }
+  .btn-full { width: 100%; }
+  .btn-icon { padding: 10px; }
+
+  /* COUNTER */
+  .counter { display: flex; align-items: center; background: var(--surface2); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .counter-btn { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 20px; color: var(--text); transition: background 0.15s; flex-shrink: 0; }
+  .counter-btn:active { background: var(--border); }
+  .counter-value { flex: 1; text-align: center; font-family: var(--font-mono); font-size: 16px; font-weight: 700; padding: 0 4px; min-width: 40px; }
+
+  /* FORMS */
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .form-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--text); font-family: var(--font); font-size: 15px; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
+  .form-input:focus { border-color: var(--accent); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-select { cursor: pointer; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: flex-end; z-index: 200; animation: fadeOverlay 0.2s; backdrop-filter: blur(4px); }
+  @keyframes fadeOverlay { from{opacity:0} to{opacity:1} }
+  .modal-overlay.hidden { display: none; }
+  .modal { background: var(--surface); border-radius: 20px 20px 0 0; border: 1px solid var(--border); border-bottom: none; width: 100%; max-height: 92vh; overflow-y: auto; animation: slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:none} }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 99px; margin: 12px auto 0; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 17px; }
+  .modal-body { padding: 20px; }
+  .modal-footer { padding: 16px 20px; display: flex; gap: 10px; border-top: 1px solid var(--border); }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .stat-value { font-family: var(--font-mono); font-size: 28px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .stat-label { font-size: 12px; color: var(--text2); }
+
+  /* ORDER CARD */
+  .order-card { margin-bottom: 16px; }
+  .order-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .supplier-name { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .order-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .order-item:last-child { border-bottom: none; }
+  .order-item-name { font-size: 14px; font-weight: 500; }
+  .order-item-meta { font-size: 12px; color: var(--text2); }
+  .qty-badge { background: var(--accent); color: #000; font-family: var(--font-mono); font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 99px; }
+
+  /* FILTER TABS */
+  .filter-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .filter-tab { padding: 6px 14px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .filter-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+  .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state h3 { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .empty-state p { font-size: 14px; line-height: 1.5; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 10px 20px; font-size: 14px; font-weight: 600; z-index: 300; opacity: 0; transition: all 0.3s; white-space: nowrap; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* SEARCH */
+  .search-wrap { position: relative; }
+  .search-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 40px; color: var(--text); font-family: var(--font); font-size: 15px; outline: none; margin-bottom: 16px; transition: border-color 0.2s; }
+  .search-input:focus { border-color: var(--accent); }
+  .search-icon-left { position: absolute; left: 13px; top: 14px; color: var(--text2); pointer-events: none; }
+  .search-scan-btn { position: absolute; right: 8px; top: 6px; background: var(--accent); border: none; border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+  .search-scan-btn:active { transform: scale(0.93); }
+
+  /* STATUS */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .status-draft { background: rgba(240,180,41,0.15); color: var(--accent); }
+  .status-sent { background: rgba(45,212,160,0.15); color: var(--green); }
+
+  /* FAB */
+  .fab { position: fixed; bottom: 80px; right: 20px; width: 52px; height: 52px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; box-shadow: 0 4px 20px rgba(240,180,41,0.4); transition: all 0.2s; z-index: 90; }
+  .fab:active { transform: scale(0.94); }
+  .fab svg { width: 24px; height: 24px; color: #000; }
+  .fab.hidden { display: none; }
+
+  /* ALERT */
+  .alert { padding: 12px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; display: flex; align-items: flex-start; gap: 8px; }
+  .alert-warning { background: rgba(240,180,41,0.1); border: 1px solid rgba(240,180,41,0.3); color: var(--accent); }
+  .alert-info { background: rgba(45,212,160,0.1); border: 1px solid rgba(45,212,160,0.3); color: var(--green); }
+  .alert-blue { background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.3); color: var(--blue); }
+
+  /* COPY AREA */
+  .copy-area { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: var(--font-mono); font-size: 12px; line-height: 1.8; color: var(--text2); white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+
+  /* INVENTORY */
+  .inv-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .inv-item:last-child { border-bottom: none; }
+  .inv-item-info { flex: 1; min-width: 0; }
+  .inv-item-name { font-weight: 600; font-size: 15px; }
+  .inv-item-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+  /* ===== SCANNER STYLES ===== */
+  .scanner-overlay { position: fixed; inset: 0; background: #000; z-index: 500; display: flex; flex-direction: column; }
+  .scanner-overlay.hidden { display: none; }
+  .scanner-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(0,0,0,0.8); position: relative; z-index: 10; }
+  .scanner-title { font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: #fff; }
+  .scanner-close { background: rgba(255,255,255,0.15); border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; }
+  #scanner-viewport { flex: 1; position: relative; overflow: hidden; }
+  #scanner-viewport video { width: 100%; height: 100%; object-fit: cover; }
+  #scanner-viewport canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+  /* Scanner aiming reticle */
+  .scanner-reticle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%); width: 260px; height: 120px; z-index: 10; pointer-events: none; }
+  .scanner-reticle::before, .scanner-reticle::after { content: ''; position: absolute; width: 30px; height: 30px; border-color: var(--accent); border-style: solid; }
+  .scanner-reticle::before { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .scanner-reticle::after { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+  .scanner-reticle-tr { position: absolute; top: 0; right: 0; width: 30px; height: 30px; border-color: var(--accent); border-style: solid; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .scanner-reticle-bl { position: absolute; bottom: 0; left: 0; width: 30px; height: 30px; border-color: var(--accent); border-style: solid; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+
+  /* Scan line animation */
+  .scan-line { position: absolute; left: 10%; right: 10%; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: scanAnim 2s infinite; z-index: 11; }
+  @keyframes scanAnim {
+    0% { top: calc(50% - 60px); opacity: 1; }
+    80% { opacity: 1; }
+    100% { top: calc(50% + 60px); opacity: 0; }
+  }
+
+  /* Scanner status */
+  .scanner-status { padding: 16px 20px; background: rgba(0,0,0,0.85); text-align: center; }
+  .scanner-hint { color: rgba(255,255,255,0.6); font-size: 13px; margin-bottom: 12px; }
+  .scanner-result { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: none; }
+  .scanner-result.show { display: block; }
+  .scanner-result-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .scanner-result-value { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--accent); }
+  .scanner-result-name { font-size: 14px; color: var(--text); margin-top: 4px; }
+  .scanner-actions { display: flex; gap: 10px; }
+
+  /* Barcode tag on product */
+  .barcode-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(96,165,250,0.15); color: var(--blue); border-radius: 99px; padding: 2px 8px; font-size: 11px; font-weight: 600; margin-top: 3px; }
+
+  /* Input with scan button */
+  .input-with-scan { display: flex; gap: 8px; align-items: flex-end; }
+  .input-with-scan .form-input { flex: 1; }
+
+  /* SCAN MODE in inventory */
+  .scan-mode-bar { background: var(--surface2); border: 1px solid var(--accent); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+  .scan-mode-bar.hidden { display: none; }
+  .scan-mode-indicator { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: blink 1s infinite; flex-shrink: 0; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .scan-mode-text { flex: 1; font-size: 13px; font-weight: 600; color: var(--accent); }
+
+  /* Highlight scanned item */
+  .inv-item.scanned { background: rgba(240,180,41,0.08); border-radius: 10px; padding: 12px 10px; margin: 0 -10px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">Bar<span>Flow</span></div>
+  <button class="btn btn-sm" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);gap:6px" onclick="openScanner('quick')">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9V6a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v3M21 15v2a2 2 0 0 1-2 2h-2M9 21H6a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+    Scanner
+  </button>
+</header>
+
+<!-- PAGES -->
+
+<!-- PRODUCTS PAGE -->
+<div class="page active" id="page-products">
+  <div class="stats-grid" id="dashboard-stats"></div>
+  <div class="search-wrap">
+    <svg class="search-icon-left" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input class="search-input" type="search" placeholder="Rechercher un produit..." id="product-search" oninput="renderProducts()">
+    <button class="search-scan-btn" onclick="openScanner('search')">
+      <svg width="18" height="18" fill="none" stroke="#000" stroke-width="2.5" viewBox="0 0 24 24"><path d="M3 9V6a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v3M21 15v2a2 2 0 0 1-2 2h-2M9 21H6a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+    </button>
+  </div>
+  <div class="filter-tabs" id="category-filters"></div>
+  <div id="products-list"></div>
+</div>
+
+<!-- INVENTORY PAGE -->
+<div class="page" id="page-inventory">
+  <div class="alert alert-info">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <span>Ajuste les quantités ou <strong>scanne les code-barres</strong> directement.</span>
+  </div>
+
+  <!-- SCAN MODE BAR -->
+  <div class="scan-mode-bar hidden" id="scan-mode-bar">
+    <div class="scan-mode-indicator"></div>
+    <div class="scan-mode-text">Mode scan actif — pointe vers un code-barre</div>
+    <button class="btn btn-sm btn-ghost" onclick="toggleScanMode()">Arrêter</button>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:16px">
+    <button class="btn btn-secondary" style="flex:1" onclick="toggleScanMode()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9V6a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v3M21 15v2a2 2 0 0 1-2 2h-2M9 21H6a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+      Scanner les stocks
+    </button>
+    <button class="btn btn-primary" style="flex:1" onclick="saveInventory()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      Valider
+    </button>
+  </div>
+
+  <div class="filter-tabs" id="inv-category-filters"></div>
+  <div id="inventory-list"></div>
+</div>
+
+<!-- ORDERS PAGE -->
+<div class="page" id="page-orders">
+  <button class="btn btn-primary btn-full" onclick="generateOrder()" style="margin-bottom:16px">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+    Générer une commande automatique
+  </button>
+  <p class="section-title">Historique des commandes</p>
+  <div id="orders-list"></div>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div class="page" id="page-settings">
+  <p class="section-title">À propos</p>
+  <div class="card">
+    <p style="font-size:14px;color:var(--text2);line-height:1.6"><strong style="color:var(--text)">BarFlow v2 — avec scan code-barres</strong><br>Données stockées localement sur votre appareil.</p>
+  </div>
+  <p class="section-title">Données</p>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <button class="btn btn-ghost btn-full" onclick="exportData()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter les données
+    </button>
+    <button class="btn btn-ghost btn-full" onclick="document.getElementById('import-file').click()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Importer des données
+    </button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+    <button class="btn btn-danger btn-full" onclick="confirmReset()">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      Réinitialiser
+    </button>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-item active" onclick="switchPage('products')" id="nav-products">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Produits
+  </button>
+  <button class="nav-item" onclick="switchPage('inventory')" id="nav-inventory">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+    Inventaire
+  </button>
+  <button class="nav-item" onclick="switchPage('orders')" id="nav-orders">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    Commandes
+  </button>
+  <button class="nav-item" onclick="switchPage('settings')" id="nav-settings">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Réglages
+  </button>
+</nav>
+
+<!-- FAB -->
+<button class="fab" id="fab-btn" onclick="openAddProduct()">
+  <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- ===== SCANNER OVERLAY ===== -->
+<div class="scanner-overlay hidden" id="scanner-overlay">
+  <div class="scanner-header">
+    <div class="scanner-title">📷 Scanner un code-barre</div>
+    <button class="scanner-close" onclick="closeScanner()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div id="scanner-viewport">
+    <div class="scanner-reticle">
+      <div class="scanner-reticle-tr"></div>
+      <div class="scanner-reticle-bl"></div>
+    </div>
+    <div class="scan-line"></div>
+  </div>
+  <div class="scanner-status">
+    <div class="scanner-hint" id="scanner-hint">Pointez la caméra vers le code-barre</div>
+    <div class="scanner-result" id="scanner-result">
+      <div class="scanner-result-label">Code détecté</div>
+      <div class="scanner-result-value" id="scanner-result-code"></div>
+      <div class="scanner-result-name" id="scanner-result-name"></div>
+    </div>
+    <div class="scanner-actions" id="scanner-actions"></div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="modal-overlay hidden" id="product-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span id="modal-title">Nouveau produit</span>
+      <button class="btn btn-icon btn-ghost btn-sm" onclick="closeModal('product-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-product-id">
+      <div class="form-group">
+        <label class="form-label">Nom du produit *</label>
+        <input class="form-input" id="p-name" placeholder="ex: Vodka Grey Goose 70cl" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Code-barre</label>
+        <div class="input-with-scan">
+          <input class="form-input" id="p-barcode" placeholder="Scan ou saisie manuelle" type="text">
+          <button class="btn btn-blue btn-sm" onclick="openScanner('barcode-field')">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9V6a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v3M21 15v2a2 2 0 0 1-2 2h-2M9 21H6a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Catégorie *</label>
+          <select class="form-input form-select" id="p-category">
+            <option value="Alcools">🥃 Alcools</option>
+            <option value="Bières">🍺 Bières</option>
+            <option value="Vins">🍷 Vins</option>
+            <option value="Softs">🥤 Softs</option>
+            <option value="Jus">🧃 Jus</option>
+            <option value="Sirops">🍯 Sirops</option>
+            <option value="Consommables">🧊 Consommables</option>
+            <option value="Autres">📦 Autres</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unité</label>
+          <select class="form-input form-select" id="p-unit">
+            <option value="bouteilles">bouteilles</option>
+            <option value="litres">litres</option>
+            <option value="cl">cl</option>
+            <option value="pièces">pièces</option>
+            <option value="cartons">cartons</option>
+            <option value="kg">kg</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fournisseur</label>
+        <input class="form-input" id="p-supplier" placeholder="ex: Metro, Sysco..." type="text">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Stock actuel</label>
+          <input class="form-input" id="p-stock" placeholder="0" type="number" min="0" step="0.5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock minimum</label>
+          <input class="form-input" id="p-min" placeholder="0" type="number" min="0" step="0.5">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Qté à commander</label>
+        <input class="form-input" id="p-order-qty" placeholder="ex: 6" type="number" min="1">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="delete-btn" onclick="deleteProduct()" style="display:none">🗑</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('product-modal')">Annuler</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveProduct()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER PREVIEW MODAL -->
+<div class="modal-overlay hidden" id="order-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span>Commande générée</span>
+      <button class="btn btn-icon btn-ghost btn-sm" onclick="closeModal('order-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="order-preview"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('order-modal')">Annuler</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="copyOrderEmail()">📋 Copier</button>
+      <button class="btn btn-primary" style="flex:1" onclick="confirmOrder()">✓ Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER DETAIL MODAL -->
+<div class="modal-overlay hidden" id="order-detail-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span id="order-detail-title">Détail commande</span>
+      <button class="btn btn-icon btn-ghost btn-sm" onclick="closeModal('order-detail-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="order-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-full" onclick="copyDetailEmail()">📋 Copier l'e-mail</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNED PRODUCT FOUND MODAL -->
+<div class="modal-overlay hidden" id="scan-found-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span>Produit trouvé</span>
+      <button class="btn btn-icon btn-ghost btn-sm" onclick="closeModal('scan-found-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="scan-found-body"></div>
+    <div class="modal-footer" id="scan-found-footer"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================
+// DATA
+// ============================
+const STORAGE_KEY = 'barflow_data_v2';
+function loadData() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch(e){}
+  return { products: [], orders: [], inventory_history: [] };
+}
+function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+let db = loadData();
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+if (db.products.length === 0) {
+  db.products = [
+    { id: uid(), name: "Vodka Grey Goose 70cl", category: "Alcools", supplier: "Metro", stock: 8, minStock: 12, orderQty: 6, unit: "bouteilles", barcode: "3104590005005" },
+    { id: uid(), name: "Gin Hendricks 70cl", category: "Alcools", supplier: "Metro", stock: 3, minStock: 6, orderQty: 6, unit: "bouteilles", barcode: "" },
+    { id: uid(), name: "Rhum Bacardi Blanc 70cl", category: "Alcools", supplier: "Metro", stock: 5, minStock: 6, orderQty: 6, unit: "bouteilles", barcode: "" },
+    { id: uid(), name: "Whisky Jack Daniel's 70cl", category: "Alcools", supplier: "Sysco", stock: 2, minStock: 4, orderQty: 3, unit: "bouteilles", barcode: "" },
+    { id: uid(), name: "Red Bull 25cl", category: "Softs", supplier: "Metro", stock: 48, minStock: 120, orderQty: 24, unit: "pièces", barcode: "90162571" },
+    { id: uid(), name: "Coca-Cola 33cl", category: "Softs", supplier: "Metro", stock: 24, minStock: 72, orderQty: 24, unit: "pièces", barcode: "5449000000996" },
+    { id: uid(), name: "Sirop de Grenadine", category: "Sirops", supplier: "Metro", stock: 4, minStock: 3, orderQty: 3, unit: "bouteilles", barcode: "" },
+    { id: uid(), name: "Jus d'Orange 1L", category: "Jus", supplier: "Metro", stock: 6, minStock: 12, orderQty: 6, unit: "litres", barcode: "" },
+    { id: uid(), name: "Glace en vrac 25kg", category: "Consommables", supplier: "IcePro", stock: 1, minStock: 3, orderQty: 2, unit: "kg", barcode: "" },
+  ];
+  saveData(db);
+}
+
+let invCounts = {};
+
+// ============================
+// NAVIGATION
+// ============================
+let currentPage = 'products';
+let currentCatFilter = 'Tous';
+let currentInvFilter = 'Tous';
+let currentOrder = null;
+let detailOrderEmail = '';
+
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.getElementById('nav-' + page).classList.add('active');
+  document.getElementById('fab-btn').classList.toggle('hidden', page !== 'products');
+  currentPage = page;
+  if (page === 'products') { renderDashboard(); renderProducts(); }
+  if (page === 'inventory') { initInventory(); renderInventory(); }
+  if (page === 'orders') renderOrdersHistory();
+}
+
+// ============================
+// CATEGORIES
+// ============================
+const CATEGORY_ICONS = { "Alcools":"🥃","Bières":"🍺","Vins":"🍷","Softs":"🥤","Jus":"🧃","Sirops":"🍯","Consommables":"🧊","Autres":"📦" };
+const CATEGORY_COLORS = { "Alcools":"#f0b429","Bières":"#e8a23c","Vins":"#c87891","Softs":"#60c5e4","Jus":"#f97316","Sirops":"#ec4899","Consommables":"#94a3b8","Autres":"#8b9cf4" };
+function getCategories() { return ['Tous', ...[...new Set(db.products.map(p => p.category))]]; }
+function renderCategoryFilters(containerId, currentFilter, onSelect) {
+  document.getElementById(containerId).innerHTML = getCategories().map(c =>
+    `<button class="filter-tab ${c === currentFilter ? 'active' : ''}" onclick="${onSelect}('${c}')">${c === 'Tous' ? 'Tous' : CATEGORY_ICONS[c] + ' ' + c}</button>`
+  ).join('');
+}
+
+// ============================
+// DASHBOARD
+// ============================
+function renderDashboard() {
+  const total = db.products.length;
+  const alerts = db.products.filter(p => p.stock < p.minStock).length;
+  const critical = db.products.filter(p => p.stock === 0).length;
+  const withBarcode = db.products.filter(p => p.barcode).length;
+  document.getElementById('dashboard-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">Produits</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:${alerts > 0 ? 'var(--accent2)' : 'var(--green)'}">${alerts}</div><div class="stat-label">Seuil atteint</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:${critical > 0 ? 'var(--accent2)' : 'var(--green)'}">${critical}</div><div class="stat-label">Ruptures</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--blue)">${withBarcode}</div><div class="stat-label">Avec code-barre</div></div>
+  `;
+}
+
+// ============================
+// PRODUCTS
+// ============================
+function setCatFilter(cat) { currentCatFilter = cat; renderCategoryFilters('category-filters', currentCatFilter, 'setCatFilter'); renderProducts(); }
+function renderProducts() {
+  renderCategoryFilters('category-filters', currentCatFilter, 'setCatFilter');
+  const search = (document.getElementById('product-search')?.value || '').toLowerCase();
+  let products = db.products;
+  if (currentCatFilter !== 'Tous') products = products.filter(p => p.category === currentCatFilter);
+  if (search) products = products.filter(p => p.name.toLowerCase().includes(search) || (p.supplier || '').toLowerCase().includes(search) || (p.barcode || '').includes(search));
+  if (products.length === 0) {
+    document.getElementById('products-list').innerHTML = `<div class="empty-state"><div class="empty-state-icon">📦</div><h3>Aucun produit</h3><p>Appuie sur + pour ajouter.</p></div>`;
+    return;
+  }
+  document.getElementById('products-list').innerHTML = products.map(p => {
+    const stockClass = p.stock === 0 ? 'stock-critical' : p.stock < p.minStock ? 'stock-warning' : 'stock-ok';
+    const color = CATEGORY_COLORS[p.category] || '#8b9cf4';
+    return `<div class="card" onclick="editProduct('${p.id}')">
+      <div class="product-card">
+        <div class="product-icon" style="background:${color}22;color:${color}">${CATEGORY_ICONS[p.category] || '📦'}</div>
+        <div class="product-info">
+          <div class="product-name">${p.name}</div>
+          <div class="product-meta">${p.category}${p.supplier ? ' · ' + p.supplier : ''}</div>
+          ${p.barcode ? `<div class="barcode-tag"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9V6a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v3M21 15v2a2 2 0 0 1-2 2h-2M9 21H6a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>${p.barcode}</div>` : ''}
+          ${p.stock < p.minStock ? `<div style="font-size:11px;color:var(--accent2);margin-top:2px">⚠ Min: ${p.minStock} ${p.unit}</div>` : ''}
+        </div>
+        <div class="product-stock">
+          <div class="stock-value ${stockClass}">${p.stock}</div>
+          <div class="stock-unit">${p.unit}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddProduct(prefillBarcode = '') {
+  document.getElementById('edit-product-id').value = '';
+  document.getElementById('modal-title').textContent = 'Nouveau produit';
+  document.getElementById('p-name').value = '';
+  document.getElementById('p-barcode').value = prefillBarcode;
+  document.getElementById('p-category').value = 'Alcools';
+  document.getElementById('p-unit').value = 'bouteilles';
+  document.getElementById('p-supplier').value = '';
+  document.getElementById('p-stock').value = '';
+  document.getElementById('p-min').value = '';
+  document.getElementById('p-order-qty').value = '';
+  document.getElementById('delete-btn').style.display = 'none';
+  openModal('product-modal');
+}
+
+function editProduct(id) {
+  const p = db.products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('edit-product-id').value = p.id;
+  document.getElementById('modal-title').textContent = 'Modifier le produit';
+  document.getElementById('p-name').value = p.name;
+  document.getElementById('p-barcode').value = p.barcode || '';
+  document.getElementById('p-category').value = p.category;
+  document.getElementById('p-unit').value = p.unit;
+  document.getElementById('p-supplier').value = p.supplier || '';
+  document.getElementById('p-stock').value = p.stock;
+  document.getElementById('p-min').value = p.minStock;
+  document.getElementById('p-order-qty').value = p.orderQty || '';
+  document.getElementById('delete-btn').style.display = 'block';
+  openModal('product-modal');
+}
+
+function saveProduct() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { showToast('⚠ Nom requis'); return; }
+  const id = document.getElementById('edit-product-id').value;
+  const product = {
+    id: id || uid(), name,
+    category: document.getElementById('p-category').value,
+    unit: document.getElementById('p-unit').value,
+    supplier: document.getElementById('p-supplier').value.trim(),
+    barcode: document.getElementById('p-barcode').value.trim(),
+    stock: parseFloat(document.getElementById('p-stock').value) || 0,
+    minStock: parseFloat(document.getElementById('p-min').value) || 0,
+    orderQty: parseInt(document.getElementById('p-order-qty').value) || 1,
+  };
+  if (id) { const idx = db.products.findIndex(p => p.id === id); if (idx >= 0) db.products[idx] = product; }
+  else db.products.push(product);
+  saveData(db);
+  closeModal('product-modal');
+  renderDashboard(); renderProducts();
+  showToast(id ? '✓ Produit modifié' : '✓ Produit ajouté');
+}
+
+function deleteProduct() {
+  const id = document.getElementById('edit-product-id').value;
+  if (!id || !confirm('Supprimer ce produit ?')) return;
+  db.products = db.products.filter(p => p.id !== id);
+  saveData(db); closeModal('product-modal');
+  renderDashboard(); renderProducts();
+  showToast('🗑 Produit supprimé');
+}
+
+// ============================
+// INVENTORY
+// ============================
+let scanModeActive = false;
+
+function initInventory() {
+  invCounts = {};
+  db.products.forEach(p => { invCounts[p.id] = p.stock; });
+}
+
+function setInvFilter(cat) { currentInvFilter = cat; renderCategoryFilters('inv-category-filters', currentInvFilter, 'setInvFilter'); renderInventory(); }
+
+function renderInventory() {
+  renderCategoryFilters('inv-category-filters', currentInvFilter, 'setInvFilter');
+  let products = db.products;
+  if (currentInvFilter !== 'Tous') products = products.filter(p => p.category === currentInvFilter);
+  if (!products.length) {
+    document.getElementById('inventory-list').innerHTML = `<div class="empty-state"><div class="empty-state-icon">📋</div><h3>Aucun produit</h3></div>`;
+    return;
+  }
+  document.getElementById('inventory-list').innerHTML = `<div class="card">${products.map(p => {
+    const val = invCounts[p.id] !== undefined ? invCounts[p.id] : p.stock;
+    const isLow = val < p.minStock;
+    return `<div class="inv-item" id="inv-row-${p.id}">
+      <div class="inv-item-info">
+        <div class="inv-item-name">${CATEGORY_ICONS[p.category] || '📦'} ${p.name}</div>
+        <div class="inv-item-meta">${p.supplier || p.category} · min. ${p.minStock} ${p.unit}</div>
+        ${p.barcode ? `<div style="font-size:10px;color:var(--text2);margin-top:2px">📊 ${p.barcode}</div>` : ''}
+        ${isLow && val > 0 ? `<div style="font-size:11px;color:var(--accent2)">⚠ Sous le minimum</div>` : ''}
+        ${val === 0 ? `<div style="font-size:11px;color:var(--accent2)">⛔ Rupture</div>` : ''}
+      </div>
+      <div class="counter">
+        <button class="counter-btn" onclick="changeInv('${p.id}', -1)">−</button>
+        <div class="counter-value" id="inv-${p.id}" style="color:${isLow ? 'var(--accent2)' : 'var(--green)'}">${val}</div>
+        <button class="counter-btn" onclick="changeInv('${p.id}', 1)">+</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function changeInv(id, delta) {
+  invCounts[id] = Math.max(0, (invCounts[id] || 0) + delta);
+  const p = db.products.find(x => x.id === id);
+  const el = document.getElementById('inv-' + id);
+  if (el) { el.textContent = invCounts[id]; el.style.color = invCounts[id] < (p?.minStock || 0) ? 'var(--accent2)' : 'var(--green)'; }
+}
+
+function saveInventory() {
+  db.products.forEach(p => { if (invCounts[p.id] !== undefined) p.stock = invCounts[p.id]; });
+  db.inventory_history.unshift({ id: uid(), date: new Date().toISOString(), snapshot: db.products.map(p => ({ id: p.id, name: p.name, stock: p.stock, unit: p.unit })) });
+  saveData(db);
+  if (scanModeActive) toggleScanMode();
+  showToast('✓ Inventaire sauvegardé');
+  renderDashboard();
+  switchPage('products');
+}
+
+function toggleScanMode() {
+  scanModeActive = !scanModeActive;
+  document.getElementById('scan-mode-bar').classList.toggle('hidden', !scanModeActive);
+  if (scanModeActive) {
+    showToast('📷 Mode scan actif');
+    openScanner('inventory');
+  } else {
+    closeScanner();
+  }
+}
+
+// Highlight a row after scan
+function highlightInvRow(id) {
+  document.querySelectorAll('.inv-item').forEach(el => el.classList.remove('scanned'));
+  const row = document.getElementById('inv-row-' + id);
+  if (row) {
+    row.classList.add('scanned');
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+// ============================
+// SCANNER ENGINE
+// ============================
+let scannerMode = 'quick'; // 'quick' | 'search' | 'barcode-field' | 'inventory'
+let scannerRunning = false;
+let lastScannedCode = '';
+let scanCooldown = false;
+
+function openScanner(mode) {
+  scannerMode = mode;
+  lastScannedCode = '';
+  document.getElementById('scanner-overlay').classList.remove('hidden');
+  document.getElementById('scanner-result').classList.remove('show');
+  document.getElementById('scanner-hint').textContent = 'Pointez la caméra vers le code-barre';
+  document.getElementById('scanner-actions').innerHTML = '';
+  startQuagga();
+}
+
+function closeScanner() {
+  stopQuagga();
+  document.getElementById('scanner-overlay').classList.add('hidden');
+  if (scannerMode === 'inventory') {
+    scanModeActive = false;
+    document.getElementById('scan-mode-bar').classList.add('hidden');
+  }
+}
+
+function startQuagga() {
+  if (scannerRunning) return;
+  Quagga.init({
+    inputStream: {
+      name: "Live",
+      type: "LiveStream",
+      target: document.getElementById("scanner-viewport"),
+      constraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+    },
+    locator: { patchSize: "medium", halfSample: true },
+    numOfWorkers: navigator.hardwareConcurrency || 2,
+    frequency: 10,
+    decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader", "code_39_reader", "upc_reader", "upc_e_reader"] },
+    locate: true
+  }, function(err) {
+    if (err) { console.error(err); showToast('⚠ Erreur caméra'); return; }
+    Quagga.start();
+    scannerRunning = true;
+  });
+
+  Quagga.onDetected(function(result) {
+    const code = result.codeResult.code;
+    if (!code || scanCooldown || code === lastScannedCode) return;
+    lastScannedCode = code;
+    scanCooldown = true;
+    setTimeout(() => { scanCooldown = false; }, 1500);
+    handleScanResult(code);
+  });
+}
+
+function stopQuagga() {
+  if (!scannerRunning) return;
+  try { Quagga.stop(); } catch(e){}
+  Quagga.offDetected();
+  scannerRunning = false;
+}
+
+function handleScanResult(code) {
+  // Vibrate if available
+  if (navigator.vibrate) navigator.vibrate(60);
+
+  const product = db.products.find(p => p.barcode === code);
+  const resultEl = document.getElementById('scanner-result');
+  const codeEl = document.getElementById('scanner-result-code');
+  const nameEl = document.getElementById('scanner-result-name');
+  const actionsEl = document.getElementById('scanner-actions');
+  const hintEl = document.getElementById('scanner-hint');
+
+  codeEl.textContent = code;
+  resultEl.classList.add('show');
+
+  if (product) {
+    nameEl.innerHTML = `✅ <strong>${product.name}</strong>`;
+    nameEl.style.color = 'var(--green)';
+    hintEl.textContent = 'Produit identifié !';
+
+    if (scannerMode === 'inventory') {
+      // Auto-increment in inventory
+      actionsEl.innerHTML = `
+        <button class="btn btn-danger btn-sm" style="flex:1" onclick="invScanDecrement('${product.id}')">− Retirer</button>
+        <button class="btn btn-primary" style="flex:1" onclick="invScanIncrement('${product.id}')">+ Ajouter</button>
+      `;
+      // Close scanner and show in list
+    } else if (scannerMode === 'quick') {
+      actionsEl.innerHTML = `
+        <button class="btn btn-ghost" style="flex:1" onclick="closeScanner()">Fermer</button>
+        <button class="btn btn-primary" style="flex:1" onclick="closeScanner();editProduct('${product.id}')">Modifier</button>
+      `;
+    } else if (scannerMode === 'search') {
+      closeScanner();
+      document.getElementById('product-search').value = product.name;
+      renderProducts();
+      showToast(`✓ ${product.name}`);
+    } else if (scannerMode === 'barcode-field') {
+      document.getElementById('p-barcode').value = code;
+      closeScanner();
+      showToast('✓ Code-barre ajouté');
+    }
+  } else {
+    // Product not found
+    nameEl.innerHTML = `❓ Produit non enregistré`;
+    nameEl.style.color = 'var(--text2)';
+    hintEl.textContent = 'Code non trouvé dans votre catalogue';
+
+    if (scannerMode === 'barcode-field') {
+      document.getElementById('p-barcode').value = code;
+      closeScanner();
+      showToast('✓ Code-barre ajouté');
+    } else if (scannerMode === 'inventory') {
+      actionsEl.innerHTML = `
+        <button class="btn btn-ghost" style="flex:1" onclick="lastScannedCode=''">Rescan</button>
+        <button class="btn btn-blue" style="flex:1" onclick="closeScanner();openAddProduct('${code}')">Créer produit</button>
+      `;
+    } else {
+      actionsEl.innerHTML = `
+        <button class="btn btn-ghost" style="flex:1" onclick="lastScannedCode=''">Rescan</button>
+        <button class="btn btn-primary" style="flex:1" onclick="closeScanner();openAddProduct('${code}')">Créer ce produit</button>
+      `;
+    }
+  }
+}
+
+function invScanIncrement(id) {
+  changeInv(id, 1);
+  highlightInvRow(id);
+  const p = db.products.find(x => x.id === id);
+  showToast(`+1 ${p?.name || ''}`);
+  lastScannedCode = '';
+  document.getElementById('scanner-result').classList.remove('show');
+  document.getElementById('scanner-actions').innerHTML = '';
+  document.getElementById('scanner-hint').textContent = 'Scan suivant...';
+}
+
+function invScanDecrement(id) {
+  changeInv(id, -1);
+  highlightInvRow(id);
+  const p = db.products.find(x => x.id === id);
+  showToast(`-1 ${p?.name || ''}`);
+  lastScannedCode = '';
+  document.getElementById('scanner-result').classList.remove('show');
+  document.getElementById('scanner-actions').innerHTML = '';
+  document.getElementById('scanner-hint').textContent = 'Scan suivant...';
+}
+
+// ============================
+// ORDERS
+// ============================
+function generateOrder() {
+  const toOrder = db.products.filter(p => p.stock < p.minStock);
+  if (!toOrder.length) { showToast('✅ Tout est au-dessus du minimum !'); return; }
+  const bySupplier = {};
+  toOrder.forEach(p => {
+    const s = p.supplier || 'Sans fournisseur';
+    if (!bySupplier[s]) bySupplier[s] = [];
+    const needed = p.minStock - p.stock;
+    const qty = Math.ceil(needed / (p.orderQty || 1)) * (p.orderQty || 1);
+    bySupplier[s].push({ ...p, qtyToOrder: qty });
+  });
+  currentOrder = { id: uid(), date: new Date().toISOString(), suppliers: bySupplier, status: 'draft' };
+
+  let html = '';
+  Object.entries(bySupplier).forEach(([supplier, items]) => {
+    html += `<div class="order-card">
+      <div class="order-header"><div class="supplier-name">🏢 ${supplier}</div><span class="badge status-draft">Brouillon</span></div>
+      <div class="card">${items.map(item => `
+        <div class="order-item">
+          <div><div class="order-item-name">${item.name}</div><div class="order-item-meta">Stock: ${item.stock} · Min: ${item.minStock} ${item.unit}</div></div>
+          <div style="display:flex;align-items:center;gap:8px"><span class="qty-badge">+${item.qtyToOrder}</span><span style="font-size:12px;color:var(--text2)">${item.unit}</span></div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  });
+  document.getElementById('order-preview').innerHTML = html;
+  openModal('order-modal');
+}
+
+function confirmOrder() {
+  if (!currentOrder) return;
+  currentOrder.status = 'sent';
+  db.orders.unshift(currentOrder);
+  saveData(db);
+  closeModal('order-modal');
+  renderOrdersHistory();
+  showToast('✓ Commande sauvegardée');
+}
+
+function copyOrderEmail() {
+  const text = buildEmailText(currentOrder);
+  navigator.clipboard?.writeText(text).then(() => showToast('✓ Copié !'));
+}
+
+function copyDetailEmail() {
+  if (!detailOrderEmail) return;
+  navigator.clipboard?.writeText(detailOrderEmail).then(() => showToast('✓ Copié !'));
+}
+
+function buildEmailText(order) {
+  const date = new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  let text = `COMMANDE DU ${date.toUpperCase()}\n${'='.repeat(40)}\n\n`;
+  Object.entries(order.suppliers).forEach(([supplier, items]) => {
+    text += `FOURNISSEUR : ${supplier.toUpperCase()}\n${'-'.repeat(30)}\n`;
+    items.forEach(item => { text += `• ${item.name} : ${item.qtyToOrder} ${item.unit}\n`; });
+    text += '\n';
+  });
+  text += `\nCordialement,\nBar Management`;
+  return text;
+}
+
+function renderOrdersHistory() {
+  if (!db.orders.length) {
+    document.getElementById('orders-list').innerHTML = `<div class="empty-state"><div class="empty-state-icon">🧾</div><h3>Aucune commande</h3><p>Génère une commande automatique.</p></div>`;
+    return;
+  }
+  document.getElementById('orders-list').innerHTML = db.orders.map(order => {
+    const date = new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    const totalItems = Object.values(order.suppliers).flat().length;
+    const suppliers = Object.keys(order.suppliers).join(', ');
+    return `<div class="card" onclick="viewOrder('${order.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div><div style="font-weight:700;font-size:15px;margin-bottom:3px">${date}</div><div style="font-size:13px;color:var(--text2)">${totalItems} produit${totalItems>1?'s':''} · ${suppliers}</div></div>
+        <span class="badge ${order.status === 'sent' ? 'status-sent' : 'status-draft'}">${order.status === 'sent' ? '✓ Envoyé' : 'Brouillon'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewOrder(id) {
+  const order = db.orders.find(o => o.id === id);
+  if (!order) return;
+  const date = new Date(order.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  document.getElementById('order-detail-title').textContent = `Commande du ${date}`;
+  let html = '';
+  Object.entries(order.suppliers).forEach(([supplier, items]) => {
+    html += `<div class="order-card">
+      <div class="order-header"><div class="supplier-name">🏢 ${supplier}</div></div>
+      <div class="card">${items.map(item => `
+        <div class="order-item">
+          <div><div class="order-item-name">${item.name}</div><div class="order-item-meta">${item.unit}</div></div>
+          <span class="qty-badge">+${item.qtyToOrder}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  });
+  const emailText = buildEmailText(order);
+  html += `<p class="section-title" style="margin-top:16px">Aperçu e-mail</p><div class="copy-area">${emailText.replace(/</g,'&lt;')}</div>`;
+  detailOrderEmail = emailText;
+  document.getElementById('order-detail-body').innerHTML = html;
+  openModal('order-detail-modal');
+}
+
+// ============================
+// MODALS
+// ============================
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.add('hidden'); });
+});
+
+// ============================
+// TOAST
+// ============================
+let toastTimeout;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ============================
+// SETTINGS
+// ============================
+function exportData() {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `barflow-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('✓ Export téléchargé');
+}
+function importData(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try { const data = JSON.parse(ev.target.result); if (data.products) { db = data; saveData(db); renderDashboard(); renderProducts(); showToast('✓ Données importées'); } }
+    catch(err) { showToast('⚠ Fichier invalide'); }
+  };
+  reader.readAsText(file); e.target.value = '';
+}
+function confirmReset() {
+  if (confirm('Supprimer TOUTES les données ?')) {
+    localStorage.removeItem(STORAGE_KEY); db = loadData(); saveData(db);
+    showToast('✓ Données effacées'); renderDashboard(); renderProducts();
+  }
+}
+
+// INIT
+renderDashboard();
+renderProducts();
+</script>
+</body>
+</html>
